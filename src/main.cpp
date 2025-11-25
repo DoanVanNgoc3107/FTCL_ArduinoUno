@@ -17,49 +17,44 @@
 // Định nghĩa chân nút nhấn
 #define BUTTON_PIN 7
 
-// Các vị trí góc của Servo Cấp phôi (Feeder) - Cần chỉnh thực tếs
-#define FEEDER_HOME_POS   0    // Vị trí lấy phôi từ ống
+// Các vị trí góc của Servo Cấp phôi (Feeder)
+#define FEEDER_HOME_POS   0    // Vị trí lỗ hứng phôi từ ống
 #define FEEDER_SENSE_POS  90   // Vị trí đưa phôi vào gầm cảm biến
 #define FEEDER_DROP_POS   160  // Vị trí nhả phôi xuống máng
 
-// Các vị trí góc của Servo Máng trượt - Tương ứng màu
+// Các vị trí góc của Servo Máng trượt
 #define RAMP_RED_POS    45
 #define RAMP_GREEN_POS  90
 #define RAMP_BLUE_POS   135
+#define RAMP_UNKNOWN_POS 135 // Mặc định nếu không nhận ra màu
 
-bool lastButtonState = LOW;
-
-// Define thêm vị trí cho màu
-enum Color
-{
+enum Color {
     COLOR_UNKNOWN = 0,
     COLOR_RED,
     COLOR_GREEN,
     COLOR_BLUE
 };
 
-// ==== Định nghĩa các function ====
-void resetSystem(); // ham nay
-
-void runSortingProcess();
-
-Color detectColor();
-
-bool getStateBtn(int const btnPin);
-
 /* ================= GLOBAL OBJECTS ================= */
-Servo feederServo; // con này để lấy phôi từ ống xuống nhé (chân 9)
-Servo rampServo; // con này để di chuyển máng trượt (chân 10)
+Servo feederServo;
+Servo rampServo;
 
-// Biến lưu giá trị tần số đọc được
+// Biến lưu trạng thái hoạt động của hệ thống
+bool isSystemRunning = false;
+
+// Biến lưu giá trị tần số
 int redFrequency = 0;
 int greenFrequency = 0;
 int blueFrequency = 0;
 
+/* ================= FUNCTION PROTOTYPES ================= */
+void resetSystem();
+void runSortingProcess();
+Color detectColor();
+void readRawSensorValues();
+
 /* ================= SETUP ================= */
-void setup()
-{
-    // Cấu hình serial (viết phần này thành function ra ngoài để dùng cũng được)
+void setup() {
     Serial.begin(9600);
     Serial.println("System Initializing...");
 
@@ -70,169 +65,160 @@ void setup()
     pinMode(S3_PIN, OUTPUT);
     pinMode(OUT_PIN, INPUT);
 
-    // Cài đặt tần số tỉ lệ 20% (Phù hợp với Arduino)
+    // Scaling 20%
     digitalWrite(S0_PIN, HIGH);
     digitalWrite(S1_PIN, LOW);
 
-    // Cấu hình Servo. Method attach để gán chân servo
+    // Cấu hình Servo
     feederServo.attach(FEEDER_SERVO_PIN);
     rampServo.attach(RAMP_SERVO_PIN);
 
-    // Cấu hình nút nhấn (Input Pullup để không cần điện trở ngoài)
+    // Nút nhấn Input Pullup (Trạng thái bình thường là HIGH, nhấn là LOW)
     pinMode(BUTTON_PIN, INPUT_PULLUP);
 
-    // Đưa hệ thống về trạng thái ban đầu
+    // Reset về vị trí ban đầu
     resetSystem();
 
-    Serial.println("System Ready. Press Button to Start.");
+    Serial.println("System Ready. Press Button to toggle AUTO MODE.");
 }
 
 /* ================= MAIN LOOP ================= */
-void loop()
-{
-    delay(50); // Chống rung phím (nếu phát triền hơn thì có thể viết chống dội)
-    runSortingProcess();
-    delay(500); // Delay giữa các lần phân loại
+void loop() {
+    // --- XỬ LÝ NÚT NHẤN (BẬT/TẮT CHẾ ĐỘ TỰ ĐỘNG) ---
+    static int lastBtnState = HIGH;
+    int currentBtnState = digitalRead(BUTTON_PIN);
+
+    // Kiểm tra sườn xuống (Khi mới nhấn nút)
+    if (lastBtnState == HIGH && currentBtnState == LOW) {
+        delay(50); // Chống rung (Debounce)
+        if (digitalRead(BUTTON_PIN) == LOW) {
+            // Đảo trạng thái hoạt động
+            isSystemRunning = !isSystemRunning;
+
+            if (isSystemRunning) {
+                Serial.println(">>> STARTED: System is now RUNNING automatically.");
+            } else {
+                Serial.println(">>> STOPPED: System is PAUSED.");
+            }
+        }
+    }
+    lastBtnState = currentBtnState;
+
+    // --- XỬ LÝ QUY TRÌNH ---
+    // Nếu biến trạng thái là true thì chạy quy trình liên tục
+    if (isSystemRunning) {
+        runSortingProcess();
+        // Sau khi chạy xong 1 quy trình, loop sẽ quay lại
+        // và tiếp tục gọi runSortingProcess() nếu isSystemRunning vẫn true.
+    }
 }
 
 /* ================= FUNCTIONS ================= */
 
 /**
- * @brief Hàm này đọc trạng thái của btn
- * @param btnPin chân của btn
- * @return HIGH hoặc LOW
+ * @brief Quy trình phân loại 1 sản phẩm
+ * Sau khi chạy xong hàm này, hệ thống đã trả về vị trí Home
+ * để sẵn sàng đón sản phẩm tiếp theo.
  */
-bool getStateBtn(int const btnPin)
-{
-    return digitalRead(btnPin);
-}
+void runSortingProcess() {
+    Serial.println("\n--- Processing New Item ---");
 
-/**
- * @brief Quy trình phân loại chính
- * Luồng hoạt động như sau: ...
- */
-void runSortingProcess()
-{
-    Serial.println("Bat dau quy trinh phan loai");
-
-    // Step 1 - Cấp phôi: Di chuyển từ chỗ lấy đến chỗ cảm biến
+    // 1. Cấp phôi: Từ Home (0 độ) mang phôi đến Cảm biến (90 độ)
+    // Lưu ý: Lúc ở Home (trong hàm resetSystem) phôi đã rơi vào lỗ servo
     feederServo.write(FEEDER_SENSE_POS);
-    delay(1000); // Đợi servo chạy và vật ổn định trước khi đọc
+    delay(1000); // Đợi servo di chuyển và vật ổn định
 
-    // Step 2 -s Đọc màu
+    // 2. Đọc màu
     Color detectedColor = detectColor();
 
-    // Step 3 - Điều khiển máng phân loại (Servo máng) dựa trên màu
-    switch (detectedColor)
-    {
-    case COLOR_RED:
-        Serial.println("Action: Sort to RED bin");
-        rampServo.write(RAMP_RED_POS);
-        break;
-    case COLOR_GREEN:
-        Serial.println("Action: Sort to GREEN bin");
-        rampServo.write(RAMP_GREEN_POS);
-        break;
-    case COLOR_BLUE:
-        Serial.println("Action: Sort to BLUE bin");
-        rampServo.write(RAMP_BLUE_POS);
-        break;
-    default:
-        Serial.println("Action: Unknown Color - Check Serial Monitor");
-        // Có thể cho về một ô mặc định hoặc giữ nguyên
-        break;
+    // 3. Điều hướng máng trượt trước
+    switch (detectedColor) {
+        case COLOR_RED:
+            Serial.println("Action: Sort to RED bin");
+            rampServo.write(RAMP_RED_POS);
+            break;
+        case COLOR_GREEN:
+            Serial.println("Action: Sort to GREEN bin");
+            rampServo.write(RAMP_GREEN_POS);
+            break;
+        case COLOR_BLUE:
+            Serial.println("Action: Sort to BLUE bin");
+            rampServo.write(RAMP_BLUE_POS);
+            break;
+        default:
+            Serial.println("Action: Unknown -> Default bin");
+            rampServo.write(RAMP_UNKNOWN_POS);
+            break;
     }
-    delay(500); // Đợi máng trượt vào vị trí
+    delay(500); // Đợi máng xoay xong
 
-    // 4. Nhả phôi: Quay thêm 1 góc nhỏ để vật rơi
+    // 4. Nhả phôi: Quay servo trên ra vị trí xả
     feederServo.write(FEEDER_DROP_POS);
-    delay(500); // Đợi vật rơi hẳn
+    delay(600); // Đợi vật rơi xuống máng
 
-    // 5. Reset: Quay về vị trí lấy phôi
+    // 5. Reset: Quay về để hứng viên tiếp theo
     resetSystem();
 
-    Serial.println("<<< Process Finished");
+    // Delay nhẹ để phôi từ ống kịp rơi vào lỗ servo (quan trọng)
+    delay(500);
 }
 
 /**
- * @brief Đưa servo về vị trí mặc định
+ * @brief Đưa servo về vị trí lấy phôi
  */
-void resetSystem()
-{
+void resetSystem() {
+    // Về vị trí 0 độ để lỗ trên đĩa servo trùng với ống chứa phôi
     feederServo.write(FEEDER_HOME_POS);
-    // ở đây giữ nguyên vị trí cũ để tiết kiệm thời gian
+    // Không cần reset rampServo để tiết kiệm thời gian
 }
 
 /**
- * @brief Đọc giá trị thô từ cảm biến TCS3200
- * @details Thay đổi S2, S3 để chọn bộ lọc màu
+ * @brief Đọc giá trị thô từ cảm biến
  */
-void readRawSensorValues()
-{
-    // Đọc RED (S2 Low, S3 Low)
+void readRawSensorValues() {
+    // Đọc RED
     digitalWrite(S2_PIN, LOW);
     digitalWrite(S3_PIN, LOW);
     redFrequency = pulseIn(OUT_PIN, LOW);
-    delay(20); // Delay nhỏ để cảm biến ổn định
+    delay(20);
 
-    // Đọc GREEN (S2 High, S3 High)
+    // Đọc GREEN
     digitalWrite(S2_PIN, HIGH);
     digitalWrite(S3_PIN, HIGH);
     greenFrequency = pulseIn(OUT_PIN, LOW);
     delay(20);
 
-    // Đọc BLUE (S2 Low, S3 High)
+    // Đọc BLUE
     digitalWrite(S2_PIN, LOW);
     digitalWrite(S3_PIN, HIGH);
     blueFrequency = pulseIn(OUT_PIN, LOW);
     delay(20);
 
-    // In giá trị ra Serial để Cân chỉnh (Rất quan trọng)
-    Serial.print("R=");
-    Serial.print(redFrequency);
-    Serial.print(" G=");
-    Serial.print(greenFrequency);
-    Serial.print(" B=");
-    Serial.print(blueFrequency);
+    // Debug
+    Serial.print("R:"); Serial.print(redFrequency);
+    Serial.print(" G:"); Serial.print(greenFrequency);
+    Serial.print(" B:"); Serial.println(blueFrequency);
 }
 
 /**
- * @brief Xác định màu sắc dựa trên tần số
- * @return Color enum
+ * @brief Logic xác định màu
+ * CẦN CALIBRATE LẠI CÁC THÔNG SỐ Ở ĐÂY DỰA TRÊN THỰC TẾ
  */
-Color detectColor()
-{
+Color detectColor() {
     readRawSensorValues();
 
-    // CHÚ Ý: pulseIn trả về chu kỳ (thời gian).
-    // Giá trị càng NHỎ nghĩa là màu đó càng MẠNH.
-
-    // Logic phát hiện màu ĐỎ
-    // Thường R sẽ nhỏ nhất và nhỏ hơn 1 ngưỡng nào đó
-    if (redFrequency < greenFrequency && redFrequency < blueFrequency && redFrequency < 100)
-    {
-        Serial.println(" -> Detected: RED");
+    // Logic so sánh cơ bản (Cần chỉnh ngưỡng số theo thực tế môi trường của bạn)
+    // Ví dụ: màu nào có tần số thấp nhất (giá trị nhỏ nhất) là màu đó
+    if (redFrequency < greenFrequency && redFrequency < blueFrequency && redFrequency < 200) {
         return COLOR_RED;
     }
-
-    // Logic phát hiện màu XANH LÁ
-    else if (greenFrequency < redFrequency && greenFrequency < blueFrequency && greenFrequency < 120)
-    {
-        Serial.println(" -> Detected: GREEN");
+    else if (greenFrequency < redFrequency && greenFrequency < blueFrequency && greenFrequency < 200) {
         return COLOR_GREEN;
     }
-
-    // Logic phát hiện màu XANH DƯƠNG
-    // Nếu đề tài yêu cầu màu Blue
-    else if (blueFrequency < redFrequency && blueFrequency < greenFrequency)
-    {
-        Serial.println(" -> Detected: BLUE");
+    else if (blueFrequency < redFrequency && blueFrequency < greenFrequency && blueFrequency < 200) {
         return COLOR_BLUE;
     }
-
-    else
-    {
-        Serial.println(" -> Unknown");
+    else {
         return COLOR_UNKNOWN;
     }
 }
