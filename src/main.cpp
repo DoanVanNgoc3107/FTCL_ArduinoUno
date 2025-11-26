@@ -1,3 +1,12 @@
+/**
+ * PROJECT : PHÂN LOẠI SẢN PHẨM THEO MÀU SẮC
+ * @Author : TRINH DOAN LINH - MSV
+ *           LOC NGUYEN - MSV
+ *           DAO TRONG TU - MSV
+ * @version 1.2.15
+ * @date 12/11/2025
+ */
+
 #include <Arduino.h>
 #include <Servo.h>
 
@@ -11,8 +20,8 @@
 #define OUT_PIN 2
 
 // Định nghĩa chân cho Servo
-#define FEEDER_SERVO_PIN 9  // Servo cấp phôi (Servo trên)
-#define RAMP_SERVO_PIN 10   // Servo máng trượt (Servo dưới)
+#define FEEDER_SERVO_PIN 9  // Servo cấp phôi (Servo tầng 1)
+#define RAMP_SERVO_PIN 10   // Servo máng trượt (Servo tầng 2)
 
 // Định nghĩa chân nút nhấn
 #define BUTTON_PIN 7
@@ -23,6 +32,7 @@
 #define FEEDER_DROP_POS   160  // Vị trí nhả phôi xuống máng
 
 // Các vị trí góc của Servo Máng trượt
+// TODO: Chỉnh các góc độ để phù hợp với gỉai màu thực tế
 #define RAMP_RED_POS    45
 #define RAMP_GREEN_POS  90
 #define RAMP_BLUE_POS   135
@@ -85,7 +95,7 @@ void setup() {
 /* ================= MAIN LOOP ================= */
 void loop() {
     // --- XỬ LÝ NÚT NHẤN (BẬT/TẮT CHẾ ĐỘ TỰ ĐỘNG) ---
-    static int lastBtnState = HIGH;
+    static int lastBtnState = HIGH; // Logic ở đây phục vụ cho mục đích bấm 1 lần là chạy, bấm lần nữa là tắt hệ thống
     int currentBtnState = digitalRead(BUTTON_PIN);
 
     // Kiểm tra sườn xuống (Khi mới nhấn nút)
@@ -119,11 +129,14 @@ void loop() {
  * @brief Quy trình phân loại 1 sản phẩm
  * Sau khi chạy xong hàm này, hệ thống đã trả về vị trí Home
  * để sẵn sàng đón sản phẩm tiếp theo.
+ *
+ * TODO: Có thể chỉnh góc độ ở trong phần define cho phù hợp với thực tế
  */
 void runSortingProcess() {
     Serial.println("\n--- Processing New Item ---");
 
     // 1. Cấp phôi: Từ Home (0 độ) mang phôi đến Cảm biến (90 độ)
+    // TODO : Thiết kế làm sao cho khi servo lấy phôi thì phôi phải tự động rơi xuống.
     // Lưu ý: Lúc ở Home (trong hàm resetSystem) phôi đã rơi vào lỗ servo
     feederServo.write(FEEDER_SENSE_POS);
     delay(1000); // Đợi servo di chuyển và vật ổn định
@@ -169,7 +182,7 @@ void runSortingProcess() {
 void resetSystem() {
     // Về vị trí 0 độ để lỗ trên đĩa servo trùng với ống chứa phôi
     feederServo.write(FEEDER_HOME_POS);
-    // Không cần reset rampServo để tiết kiệm thời gian
+    // Không cần reset rampServo để tiết kiệm thời gian, khi nào có màu mới thì tự chuyển cũng được
 }
 
 /**
@@ -202,12 +215,13 @@ void readRawSensorValues() {
 
 /**
  * @brief Logic xác định màu
- * CẦN CALIBRATE LẠI CÁC THÔNG SỐ Ở ĐÂY DỰA TRÊN THỰC TẾ
+ * TODO: CẦN CALIBRATE LẠI CÁC THÔNG SỐ Ở ĐÂY DỰA TRÊN THỰC TẾ
+ * @return trả ra enum
  */
 Color detectColor() {
     readRawSensorValues();
 
-    // Logic so sánh cơ bản (Cần chỉnh ngưỡng số theo thực tế môi trường của bạn)
+    // Logic so sánh cơ bảns
     // Ví dụ: màu nào có tần số thấp nhất (giá trị nhỏ nhất) là màu đó
     if (redFrequency < greenFrequency && redFrequency < blueFrequency && redFrequency < 200) {
         return COLOR_RED;
