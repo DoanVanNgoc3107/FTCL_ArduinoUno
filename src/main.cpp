@@ -213,7 +213,7 @@ void runSortingProcess() {
 
     // 5. Quay về đón phôi mới
     resetSystem();
-    delay(600); // QUAN TRỌNG: Đợi phôi từ ống rớt xuống lỗ servo
+    delay(600); // Đợi phôi từ ống rớt xuống lỗ servo
 
     // 6. Đếm sản phẩm và hiển thị lên LCD
     countProduct();
