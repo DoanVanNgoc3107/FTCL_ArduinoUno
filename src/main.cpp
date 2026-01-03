@@ -6,43 +6,43 @@
 /* ================= CONFIGURATION & PINOUT ================= */
 
 // LCD configuration
-#define LCD_ADR 0x27
-#define LCD_COLS 16
-#define LCD_ROWS 2
+constexpr uint8_t LCD_ADR = 0x27;
+constexpr uint8_t LCD_COLS = 16;
+constexpr uint8_t LCD_ROWS = 2;
 
 // Sensor light
-#define SENSOR_PIN_RED 11
-#define SENSOR_PIN_GREEN 12
-#define SENSOR_PIN_BLUE 13
-#define THRESHOLD_LIGHT 500
+constexpr uint8_t SENSOR_PIN_RED = 11;
+constexpr uint8_t SENSOR_PIN_GREEN = 12;
+constexpr uint8_t SENSOR_PIN_BLUE = 13;
+constexpr int THRESHOLD_LIGHT = 500;
 
 // Baud cua serial
-#define BAUD_RATE 9600
+constexpr int BAUD_RATE = 9600;
 
 // Cảm biến màu TCS3200
-#define S0_PIN 3 // Chan SO noi voi chan 3 cua arduino
-#define S1_PIN 4
-#define S2_PIN 5
-#define S3_PIN 6
-#define OUT_PIN 2
+constexpr uint8_t S0_PIN = 3; // Chan SO noi voi chan 3 cua arduino
+constexpr uint8_t S1_PIN = 4;
+constexpr uint8_t S2_PIN = 5;
+constexpr uint8_t S3_PIN = 6;
+constexpr uint8_t OUT_PIN = 2;;
 
 // Servo
-#define FEEDER_SERVO_PIN 9 // Chan lay phoi chan 9
-#define RAMP_SERVO_PIN 10 // chan mang chan 10
+constexpr uint8_t FEEDER_SERVO_PIN = 9; // Chan lay phoi chan 9
+constexpr uint8_t RAMP_SERVO_PIN = 10; // chan mang chan 10
 
 // Button
-#define BUTTON_PIN 7 // Chan nut khoi dong
+constexpr uint8_t BUTTON_PIN = 7; // Chan nut khoi dong
 
 // Vị trí Servo (Cần tinh chỉnh thực tế)
-#define FEEDER_HOME_POS   81    // Lỗ hứng phôi
-#define FEEDER_SENSE_POS  45   // Đưa phôi vào gầm cảm biến (chỉnh 90->95 để cân giữa)
-#define FEEDER_DROP_POS   8  // Nhả phôi (tăng lên 170 để chắc chắn rớt)
+constexpr uint8_t FEEDER_HOME_POS = 81; // Lỗ hứng phôi
+constexpr uint8_t FEEDER_SENSE_POS = 45; // Đưa phôi vào gầm cảm biến (chỉnh 90->95 để cân giữa)
+constexpr uint8_t FEEDER_DROP_POS = 8; // Nhả phôi (tăng lên 170 để chắc chắn rớt)
 
 // Vị trí Máng trượt
-#define RAMP_RED_POS    50
-#define RAMP_GREEN_POS  90
-#define RAMP_BLUE_POS   130
-#define RAMP_UNKNOWN_POS 140
+constexpr uint8_t RAMP_RED_POS = 50;
+constexpr uint8_t RAMP_GREEN_POS = 90;
+constexpr uint8_t RAMP_BLUE_POS = 130;
+constexpr uint8_t RAMP_UNKNOWN_POS = 140;
 
 /* ================= GLOBAL OBJECTS ================= */
 Servo feederServo; // Khoi tao servo lay phoi
@@ -59,8 +59,8 @@ unsigned long blueFreq = 0;
 // function interface
 void resetSystem(); // dat lai he thong
 void runSortingProcess(); // Qua trinh sap xep
-void countProduct();
-void lcdInit();
+void countProduct(); // Dem san pham
+void lcdInit(); // Khoi tao lcd
 
 // Biến đếm số lượng sản phẩm
 static int countRed = 0;
@@ -78,11 +78,11 @@ void setup() {
     pinMode(S3_PIN, OUTPUT);
     pinMode(OUT_PIN, INPUT);
 
-    // Scaling 20% (Phổ biến nhất cho Arduino Uno)
+    // Scaling 20%, cho tốc độ đọc nhanh hơn
     digitalWrite(S0_PIN, HIGH);
     digitalWrite(S1_PIN, LOW);
 
-    // Set up chan Set up cua Servo de nhan hoac truyen tin hieu
+    // Set up servo
     feederServo.attach(FEEDER_SERVO_PIN);
     rampServo.attach(RAMP_SERVO_PIN);
 
