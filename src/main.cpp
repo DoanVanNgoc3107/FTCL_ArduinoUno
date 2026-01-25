@@ -36,7 +36,7 @@ constexpr uint8_t BUTTON_PIN = 7; // Chan nut khoi dong
 // Vị trí Servo (Cần tinh chỉnh thực tế)
 constexpr uint8_t FEEDER_HOME_POS = 81; // Lỗ hứng phôi
 constexpr uint8_t FEEDER_SENSE_POS = 45; // Đưa phôi vào gầm cảm biến (chỉnh 90->95 để cân giữa)
-constexpr uint8_t FEEDER_DROP_POS = 8; // Nhả phôi (tăng lên 170 để chắc chắn rớt)
+constexpr uint8_t FEEDER_DROP_POS = 5; // Nhả phôi (tăng lên 170 để chắc chắn rớt)
 
 // Vị trí Máng trượt
 constexpr uint8_t RAMP_RED_POS = 50;
@@ -213,7 +213,7 @@ void runSortingProcess() {
 
     // 5. Quay về đón phôi mới
     resetSystem();
-    delay(600); // Đợi phôi từ ống rớt xuống lỗ servo
+    delay(600); // QUAN TRỌNG: Đợi phôi từ ống rớt xuống lỗ servo
 
     // 6. Đếm sản phẩm và hiển thị lên LCD
     countProduct();
@@ -269,3 +269,4 @@ void lcdInit() {
     }
     lcd.clear();
 }
+
