@@ -10,12 +10,6 @@ constexpr uint8_t LCD_ADR = 0x27;
 constexpr uint8_t LCD_COLS = 16;
 constexpr uint8_t LCD_ROWS = 2;
 
-// Sensor light
-constexpr uint8_t SENSOR_PIN_RED = 11;
-constexpr uint8_t SENSOR_PIN_GREEN = 12;
-constexpr uint8_t SENSOR_PIN_BLUE = 13;
-constexpr int THRESHOLD_LIGHT = 500;
-
 // Baud cua serial
 constexpr int BAUD_RATE = 9600;
 
@@ -34,15 +28,15 @@ constexpr uint8_t RAMP_SERVO_PIN = 10; // chan mang chan 10
 constexpr uint8_t BUTTON_PIN = 7; // Chan nut khoi dong
 
 // Vị trí Servo (Cần tinh chỉnh thực tế)
-constexpr uint8_t FEEDER_HOME_POS = 81; // Lỗ hứng phôi
-constexpr uint8_t FEEDER_SENSE_POS = 45; // Đưa phôi vào gầm cảm biến (chỉnh 90->95 để cân giữa)
-constexpr uint8_t FEEDER_DROP_POS = 5; // Nhả phôi (tăng lên 170 để chắc chắn rớt)
+constexpr uint8_t FEEDER_HOME_POS = 89; // Lỗ hứng phôi
+constexpr uint8_t FEEDER_SENSE_POS = 70; // Đưa phôi vào gầm cảm biến (chỉnh 90->95 để cân giữa)
+constexpr uint8_t FEEDER_DROP_POS = 3; // Nhả phôi (tăng lên 170 để chắc chắn rớt)
 
 // Vị trí Máng trượt
 constexpr uint8_t RAMP_RED_POS = 50;
 constexpr uint8_t RAMP_GREEN_POS = 90;
 constexpr uint8_t RAMP_BLUE_POS = 130;
-constexpr uint8_t RAMP_UNKNOWN_POS = 140;
+// constexpr uint8_t RAMP_UNKNOWN_POS = 140;
 
 /* ================= GLOBAL OBJECTS ================= */
 Servo feederServo; // Khoi tao servo lay phoi
@@ -59,13 +53,7 @@ unsigned long blueFreq = 0;
 // function interface
 void resetSystem(); // dat lai he thong
 void runSortingProcess(); // Qua trinh sap xep
-void countProduct(); // Dem san pham
 void lcdInit(); // Khoi tao lcd
-
-// Biến đếm số lượng sản phẩm
-static int countRed = 0;
-static int countGreen = 0;
-static int countBlue = 0;
 
 /* ================= SETUP ================= */
 void setup() {
@@ -105,8 +93,21 @@ void loop() {
         delay(50); // Chống rung
         if (digitalRead(BUTTON_PIN) == LOW) {
             isSystemRunning = !isSystemRunning;
-            if (isSystemRunning) Serial.println(">>> START: HỆ THỐNG CHẠY");
-            else Serial.println(">>> STOP: HỆ THỐNG DỪNG (Sẽ dừng sau khi xong viên hiện tại)");
+            if (isSystemRunning) {
+                Serial.println(">>> START: HỆ THỐNG CHẠY");
+                lcd.clear();
+                lcd.setCursor(0, 0);
+                lcd.print("SYSTEM RUNNING");
+                lcd.setCursor(0, 1);
+                lcd.print("Keep btn to STOP");
+            } else {
+                Serial.println(">>> STOP: HỆ THỐNG DỪNG (Sẽ dừng sau khi xong viên hiện tại)");
+                lcd.clear();
+                lcd.setCursor(0, 0);
+                lcd.print("SYSTEM STOPPED");
+                lcd.setCursor(0, 1);
+                lcd.print("Press btn to ON");
+            }
         }
     }
     lastBtnState = currentBtnState;
@@ -214,41 +215,8 @@ void runSortingProcess() {
     // 5. Quay về đón phôi mới
     resetSystem();
     delay(600); // QUAN TRỌNG: Đợi phôi từ ống rớt xuống lỗ servo
-
-    // 6. Đếm sản phẩm và hiển thị lên LCD
-    countProduct();
-
-    lcd.setCursor(0, 0);
-    lcd.print("R:");
-    lcd.print(countRed);
-    lcd.print(" G:");
-    lcd.print(countGreen);
-    lcd.print(" B:");
-    lcd.print(countBlue);
-
-    lcd.setCursor(0, 1);
-    lcd.print("Total: ");
-    lcd.print(countRed + countGreen + countBlue);
 }
 
-/**
- * Hàm này được sử dụng để đếm số lượng sản phẩm theo màu sắc
- */
-void countProduct() {
-    int const valueSensorRed = digitalRead(SENSOR_PIN_RED);
-    int const valueSensorGreen = digitalRead(SENSOR_PIN_GREEN);
-    int const valueSensorBlue = digitalRead(SENSOR_PIN_BLUE);
-
-    if (valueSensorRed < THRESHOLD_LIGHT) {
-        countRed++;
-    } else if (valueSensorGreen < THRESHOLD_LIGHT) {
-        countGreen++;
-    } else if (valueSensorBlue < THRESHOLD_LIGHT) {
-        countBlue++;
-    } else {
-        Serial.println("Khong phat hien mau sac nao.");
-    }
-}
 
 /**
  * Hàm này sử dụng để setup lcd
@@ -260,13 +228,4 @@ void lcdInit() {
     lcd.print("Color Sorter");
     delay(1000);
     lcd.clear();
-
-    // Nếu hệ thống chưa hoạt động thì yêu cầu bấm nút
-    if (!isSystemRunning) {
-        lcd.setCursor(0, 1);
-        lcd.print("Press button to start");
-        delay(1000);
-    }
-    lcd.clear();
 }
-
